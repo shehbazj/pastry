@@ -4,7 +4,7 @@
 
 * Creation Date : 09-02-2013
 
-* Last Modified : Tue 12 Feb 2013 03:13:29 AM IST
+* Last Modified : Tue 12 Feb 2013 03:51:26 AM IST
 
 * Created By : ShehbazJaffer <shehbazjaffer007@gmail.com> 
 
@@ -23,7 +23,6 @@ _._._._._._._._._._._._._._._._._._._._._.*/
 #include<map>
 #include<algorithm>
 #include<assert.h>
-
 
 #define DEBUG 
 #define ll long long
@@ -64,7 +63,7 @@ using namespace std;
 vector <int> :: iterator IntIter;
 
 #define b 4 // base value
-#define N 1000 // number of nodes
+#define N 10000 // number of nodes
 #define ROW int(ceil(log(N) / log(pow(2,b)))) // number of ROW Values
 #define COL int(pow(2,b)) // number of Column Values
 #define L 16
@@ -100,10 +99,8 @@ typedef class pastry{
 	bool *availableNodeId;
 	int *mapIpId;
 	void pastryInit(void);
-	int route(char msg[100], int key){};
+	int route(char msg[100], int key);
 }pastry;
-
-
 
 void node :: printNode(){
 	int i,j;
@@ -144,7 +141,7 @@ void node :: getNextIp(){
 	return;
 }
 
-void node :: getNextNodeId(bool availableNodeId[N], int mapIpId[N]){
+void node :: getNextNodeId(bool *availableNodeId, int *mapIpId){
 int ip = ipAddress[0] + (ipAddress[1] * 256) + (ipAddress[2] * 256 * 256) + (ipAddress[3] * 256 * 256 * 256);
 	int nodeId = random() % N;
 	if(availableNodeId[nodeId]==false){
@@ -166,7 +163,7 @@ void node :: initLeafSet(){
 	}
 }
 
-void node :: initNeighborhoodSet(int mapIpId[N]){
+void node :: initNeighborhoodSet(int *mapIpId){
 	int i;
 	int ip = ipAddress[0] + (ipAddress[1] * 256) + (ipAddress[2] * 256 * 256) + (ipAddress[3] * 256 * 256 * 256);
 	neighborhoodSet = new int [M];
@@ -179,16 +176,12 @@ void node :: initNeighborhoodSet(int mapIpId[N]){
 void node :: initRoutingTable(){
 	int x,i,j;
 	int mask,allOnes=0xffff0fff,sum;
-	printf("Allocating memory to routingTable\n");
 	routingTable = new int *[ROW];
 	assert(routingTable!=NULL);
-	printf("Memory Allocated\n");
 	f(i,0,ROW){
 		routingTable[i] = new int [COL];
 		assert(routingTable[i]!=NULL);
-		printf("allocated memory to routingTable[%d]\n",i);
 	}
-	printf("memory allocated to routing table\n");
 	f(i,0,ROW)
 		f(j,0,COL){
 			mask = allOnes >> (i*4);
@@ -196,7 +189,6 @@ void node :: initRoutingTable(){
 			sum = (nodeId & mask ) + (j * pow((pow(2,b)),(ROW-i-1))) ;
 			routingTable[i][j] = sum;
 		}
-	printf("routing table filled\n");
 }
 
 void node :: initNode( bool *availableNodeId , int *mapIpId ){
@@ -205,7 +197,6 @@ void node :: initNode( bool *availableNodeId , int *mapIpId ){
 	getNextNodeId(availableNodeId, mapIpId);
 	initLeafSet();
 	//initNeighborhoodSet();
-	printf("call to initRoutingTable()\n");
 	initRoutingTable();
 }
 
@@ -225,39 +216,33 @@ void pastry :: pastryInit(void){
 	availableNodeId = new bool[N];
 	fill_n(availableNodeId,N,true);
 	mapIpId = new int [N];
+	nodeList = new node[N];
 	f(i,0,N){			// Initialize all Nodes
-		printf("Initializing node %d\n",i);
 		nodeList[i].initNode(this->availableNodeId, this->mapIpId);	
-	
 	}
-		printf("Initialized nodes\n");
 	f(i,0,N)
 		nodeList[i].initNeighborhoodSet(mapIpId);
-	printf("Initializing Neighborhood set\n");
-		//nodeList[1001].printNode();	
-	
+//		nodeList[1001].printNode();	
 }
 
 int 
 main(int argc, char *argv[])
 {
-	int choice,i,j,nodeId1,nodeId2;
+	int choice,i,j,nodeId1,nodeId2,key;
 	char msg[100];
-	pastry pastryObj;
-	pastryObj.pastryInit();
+	pastry *pastryObj = new pastry();
+	pastryObj->pastryInit();
 	while(choice!=5){
 	choice = menu();
 	switch(choice){
 		case 1:
-				printf("Enter NodeId to which msg has to be sent\n");
-				scanf("%d",&nodeId1);
-				printf("Enter NodeId to which msg has to be sent\n");
-				scanf("%d",&nodeId2);
+				printf("Enter Key\n");
+				scanf("%d",&key);
 				printf("Enter msg\n");
 				scanf("%s",msg);
 				#ifndef DPRINTF
 				#define DPRINTF
-				nodeId2 = node :: route(nodeId2,nodeId1,msg);
+				pastryObj.route(key,msg);
 				#endif
 				break;
 		case 2:
