@@ -4,7 +4,7 @@
 
 * Creation Date : 09-02-2013
 
-* Last Modified : Tue 12 Feb 2013 03:51:26 AM IST
+* Last Modified : Thu 14 Feb 2013 02:33:36 AM IST
 
 * Created By : ShehbazJaffer <shehbazjaffer007@gmail.com> 
 
@@ -23,6 +23,8 @@ _._._._._._._._._._._._._._._._._._._._._.*/
 #include<map>
 #include<algorithm>
 #include<assert.h>
+#include<curses.h>
+#include"md5.h"
 
 #define DEBUG 
 #define ll long long
@@ -80,12 +82,14 @@ typedef class node
 	int **routingTable;
 /*member functions*/
 	void getNextIp();
-	void getNextNodeId(bool [], int []);
+	int getNextNodeId(vector <bool> , vector <int> & );
 	void initLeafSet();
 	void initRoutingTable();
 public:
-	void initNode(bool [], int []);
-	void initNeighborhoodSet(int []);
+	int initNode(vector <bool> &, vector <int> &);
+	void initNeighborhoodSet(vector <int> & );
+	int  forward( int key,char msg []); // returns next Id (if there exists one.. else returns -1);
+	int  deliver(char msg[], int key); // why do we need this?
 	void updateLeafSet(){};
 	void updateNeighborhoodSet(){};
 	void updateRoutingTable(){};
@@ -93,14 +97,24 @@ public:
 }node;
 
 typedef class pastry{
-	node *nodeList;
-	int route(int key, char msg[100]);
 	public:
-	bool *availableNodeId;
-	int *mapIpId;
+	vector <node> nodeList;
+	vector <bool> availableNodeId;
+	vector <int> mapIpId;
+	vector <int> nodeIdList;
 	void pastryInit(void);
-	int route(char msg[100], int key);
+	int route(int key, char []);
 }pastry;
+
+int pastry :: route( int key, char *msg){
+	int next_key = random() % N;	
+	int dum;
+	while(next_key != -1){
+		printf("Working On Node %d\n",next_key);
+		next_key = nodeList[nodeIdList[next_key]].forward(key, msg);
+		//getc(stdin);
+	}
+}
 
 void node :: printNode(){
 	int i,j;
@@ -132,7 +146,7 @@ void node :: printNode(){
 }
 
 void node :: getNextIp(){
-	static int ip = 0;
+	static int ip = -1;
 	ip++;
 	ipAddress[0] = ip % 256;
 	ipAddress[1] = (ip / 256) % 256;
@@ -141,9 +155,11 @@ void node :: getNextIp(){
 	return;
 }
 
-void node :: getNextNodeId(bool *availableNodeId, int *mapIpId){
+int node :: getNextNodeId(vector <bool> availableNodeId, vector <int> & mapIpId){
 int ip = ipAddress[0] + (ipAddress[1] * 256) + (ipAddress[2] * 256 * 256) + (ipAddress[3] * 256 * 256 * 256);
-	int nodeId = random() % N;
+	//int nodeId = random() % N;
+	string S;
+	
 	if(availableNodeId[nodeId]==false){
 		while(availableNodeId[nodeId]==false){
 			nodeId = (nodeId +1 ) % N;
@@ -152,7 +168,48 @@ int ip = ipAddress[0] + (ipAddress[1] * 256) + (ipAddress[2] * 256 * 256) + (ipA
 	availableNodeId[nodeId]=false;
 	mapIpId[ip] = nodeId;	
 	this->nodeId = nodeId;
+	return nodeId;
 }
+
+int node :: forward(int key, char *msg){
+	// returns the next node if there exists a better match for the key
+	// else returns -1, if this is the ultimate node.
+	int i,j,min_diff,next_node_Id;
+	int col;
+	//printNode();
+	if(nodeId == key){
+		return -1;
+	}
+	min_diff = abs(nodeId - key);
+	next_node_Id = nodeId;
+	for(i=0;i< L; i++){  // check Leaf Set for some nodeId having value closer to key than current nodeId
+		if(leafSet[i]==-1)
+			continue;
+		if(abs(leafSet[i] - key) < min_diff ){
+			next_node_Id = leafSet[i];
+			min_diff = abs(leafSet[i]-key);
+		}
+	}
+	if(next_node_Id != nodeId) { // some leaf nodeId was closer to the key than the current nodeId
+		return next_node_Id; // forward message to leaf node having closer node Id.
+	}else { // match all column entries having first digit closer to key;
+			// [TODO] optimize this loop, you can skip checking all entries of routing table
+		for(i=0;i< ROW; i++){
+			for(j=0; j< COL; j++){
+				if(routingTable[i][j] != -1){
+					if(abs(key - routingTable[i][j]) < min_diff){
+						min_diff = abs(key - routingTable[i][j]);
+						next_node_Id = routingTable[i][j];
+					}
+				}
+			}
+		}
+	}
+	if(next_node_Id == nodeId) // no entry found in routing table that is closer than present node
+		return -1;
+	return next_node_Id;
+}
+
 
 void node :: initLeafSet(){
 	int i;
@@ -163,7 +220,7 @@ void node :: initLeafSet(){
 	}
 }
 
-void node :: initNeighborhoodSet(int *mapIpId){
+void node :: initNeighborhoodSet(vector <int>  & mapIpId){
 	int i;
 	int ip = ipAddress[0] + (ipAddress[1] * 256) + (ipAddress[2] * 256 * 256) + (ipAddress[3] * 256 * 256 * 256);
 	neighborhoodSet = new int [M];
@@ -191,13 +248,14 @@ void node :: initRoutingTable(){
 		}
 }
 
-void node :: initNode( bool *availableNodeId , int *mapIpId ){
+int node :: initNode( vector <bool> & availableNodeId , vector <int> & mapIpId){
 	int i;
 	getNextIp();
-	getNextNodeId(availableNodeId, mapIpId);
+	i = getNextNodeId(availableNodeId, mapIpId);
 	initLeafSet();
 	//initNeighborhoodSet();
 	initRoutingTable();
+	return i;
 }
 
 int menu(){
@@ -212,13 +270,17 @@ int menu(){
 }
 
 void pastry :: pastryInit(void){
-	int i;
-	availableNodeId = new bool[N];
-	fill_n(availableNodeId,N,true);
-	mapIpId = new int [N];
-	nodeList = new node[N];
-	f(i,0,N){			// Initialize all Nodes
-		nodeList[i].initNode(this->availableNodeId, this->mapIpId);	
+	int i,nodeId;
+	availableNodeId.resize(N); //= new bool[N];
+	vector <bool> :: iterator itb;
+	for(itb=availableNodeId.begin();itb!=availableNodeId.end();itb++)
+		*itb=true;
+	mapIpId.resize(N); //= new int [N];
+	nodeList.resize(N);// = new node[N];
+	nodeIdList.resize(N); // = new int[N];
+	f(i,0,N){			//Initialize all Nodes
+		nodeId = nodeList[i].initNode(availableNodeId, mapIpId);	
+		nodeIdList[nodeId] = i;
 	}
 	f(i,0,N)
 		nodeList[i].initNeighborhoodSet(mapIpId);
@@ -240,10 +302,7 @@ main(int argc, char *argv[])
 				scanf("%d",&key);
 				printf("Enter msg\n");
 				scanf("%s",msg);
-				#ifndef DPRINTF
-				#define DPRINTF
-				pastryObj.route(key,msg);
-				#endif
+				pastryObj->route(key,msg);
 				break;
 		case 2:
 				break;
@@ -253,7 +312,7 @@ main(int argc, char *argv[])
 		case 4: printf("Enter the nodeId:\n");
 				scanf("%d",&nodeId1);
 				//nodeId2 = node :: route(nodeId1);
-				printf("Node %d found (closest to %d)\n",nodeId2,nodeId1);
+				//printf("Node %d found (closest to %d)\n",nodeId2,nodeId1);
 				//printNode();
 				printf("\n");
 				break;
