@@ -1,6 +1,6 @@
-all: 	pastry 
+all: 	pastry.out 
 
-pastry: 
+pastry.out: pastry.cpp md5.cpp 
 		g++ -g -o pastry.out pastry.cpp md5.cpp
 
 clean:

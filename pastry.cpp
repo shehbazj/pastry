@@ -4,7 +4,7 @@
 
 * Creation Date : 09-02-2013
 
-* Last Modified : Sat 16 Feb 2013 04:27:13 PM IST
+* Last Modified : Sun 17 Feb 2013 01:56:17 PM IST
 
 * Created By : ShehbazJaffer <shehbazjaffer007@gmail.com> 
 
@@ -65,7 +65,7 @@ using namespace std;
 vector <int> :: iterator IntIter;
 
 #define b 4 // base value
-#define N 100 // number of nodes
+#define N 1000 // number of nodes
 #define ROW 8 //int(ceil(log(N) / log(pow(2,b)))) // number of ROW Values
 #define COL 16 //int(pow(2,b)) // number of Column Values
 #define L 16
@@ -91,8 +91,9 @@ public:
 	void setRoutingTableEntry(int, int, string);
 	string & getRoutingTableEntry(int, int);
 	void initNeighborhoodSet(map <int, string> & );
-	void forward(string &,char msg []); // returns next Id (if there exists one.. else returns -1);
+	string forward(const string &,char msg []); // returns next Id (if there exists one.. else returns -1);
 	int  deliver(char msg[], int key); // why do we need this?
+	int nodeListLookup(string &);
 	void updateLeafSet(){};
 	void updateNeighborhoodSet(){};
 	void updateRoutingTable(){};
@@ -107,17 +108,36 @@ typedef class pastry{
 	map <string, int> mapIdIp;
 	map <int, string> mapIpId;
 	void pastryInit(void);
-	int route(string & key1, string & key2, char []);
+	string & route(string & key1,const string & key2, char []);
 	void initRoutingTable();
 	void printNode(string &);
 	string bestMatch( int , char , string );
+	string  getNearestNodeId(const string &);
 }pastry;
+
+long long strdiff(const string &s1, string &s2){
+	long long x, y;
+	stringstream ss,tt;
+	ss << hex << s1.c_str();
+	ss >> x;
+	tt << hex << s2.c_str();
+	tt >> y;
+	//cout << "x = " << x << endl << "y = " << y << endl;
+	return abs(x-y);
+}
+
+int shl(const string & key, string &nodeId){ // returns common substring length
+	int i;
+	for(i=key.length()-1;i>=0;i--)
+		if(!strncmp(key.c_str(),nodeId.c_str(),i))
+			return i;
+}
 
 string pastry::bestMatch( int rowNo, char colChar, string curNode ){
 	map<string, int> :: iterator it;	
 	string allMask("ffffffff");
 	for (it = mapIdIp.begin(); it != mapIdIp.end(); it++) {
-		if( !strncmp( curNode.c_str(), (it->first).c_str(), rowNo ) && it->first.at(rowNo) == colChar )
+		if( !strncmp( curNode.c_str(), (it->first).c_str(), rowNo ) && it->first.at(rowNo) == colChar && curNode.compare(it->first.c_str()) )
 			return (it->first);
 	}
 	return allMask;
@@ -151,65 +171,115 @@ void node :: printNodeId(void){
 	cout << nodeId << endl ;
 }
 
-void node :: forward(string & key, char *msg){
+string node :: forward(const string & key, char *msg){
 	// returns the next node if there exists a better match for the key
-	// else returns -1, if this is the ultimate node.
-	int i,j,min_diff;
-	string next_node_Id;
-	int col;
-	//printNode();
-	next_node_Id.assign(nodeId);
-	if(next_node_Id.compare(key)==0){
-		return ;
+	int i,j;
+	long long min_diff;
+	string nextNodeId;
+	int col,row;
+	if(nodeId.compare(key)==0){
+		return key; // reached destination, return.
 	}
-	min_diff = abs(atoi(leafSet[i].c_str()-atoi(key.c_str())));
-	next_node_Id.assign(nodeId);
-	for(i=0;i< L; i++){  // check Leaf Set for some nodeId having value closer to key than current nodeId
-		if(!leafSet[i].compare( "\0"))
+	nextNodeId.assign(nodeId);
+	min_diff = strdiff(key,nextNodeId);
+	string min_leaf("ffffffff"), max_leaf("ffffffff");
+	for(i=0;i<L;i++){ // select Min and Max leaf Elements
+		if(!leafSet[i].compare("ffffffff"))
 			continue;
-		if(abs(atoi(leafSet[i].c_str()-atoi(key.c_str())))  < min_diff ){
-			next_node_Id.assign(leafSet[i]);
-			min_diff = abs( atoi(leafSet[i].c_str()) - atoi(key.c_str()) );
+		if(!min_leaf.compare("ffffffff"))
+			min_leaf.assign(leafSet[i]);
+		max_leaf.assign(leafSet[i]);
+	}
+	if(key.compare(min_leaf) >= 0 && key.compare(max_leaf) <= 0 && max_leaf.compare("ffffffff") && min_leaf.compare("ffffffff") )	
+	{  // leaf set [HIT]	
+		for(i=0;i< L; i++){  // check Leaf Set for some nodeId having value closer to key than current nodeId
+			if(!leafSet[i].compare( "ffffffff"))
+				continue;
+			if(strdiff(key,leafSet[i])  < min_diff ){
+				nextNodeId.assign(leafSet[i]);
+				min_diff = strdiff(key,leafSet[i]);
+			}
+		}
+		return nextNodeId;
+	}
+	row = shl(key,nodeId);
+	col = (key[row] > '9') ? (key[row]-87): (key[row]-48);
+	if(routingTable[row][col].compare("ffffffff")){ // routingTable [HIT]
+		return routingTable[row][col];
+	}
+	// [END CASE] return minimum node entry encountered among  (Leaf Set) U (Routing Table) U (NeighborHood Set)
+	
+	// Scanning LeafSet
+	
+	for(i=0;i< L; i++){ 
+		if(!leafSet[i].compare( "ffffffff"))
+			continue;
+		if(strdiff(key,leafSet[i])  < min_diff && shl(key,leafSet[i])>=row ){  // min diff has been taken wrt current NodeId at start of function
+			nextNodeId.assign(leafSet[i]);
+			min_diff = strdiff(key,leafSet[i]);
 		}
 	}
-	if(next_node_Id.compare(nodeId)!=0) { // some leaf nodeId was closer to the key than the current nodeId
-		key.assign(next_node_Id);
-		return ; // forward message to leaf node having closer node Id.
-	}else { // match all column entries having first digit closer to key;
-			// [TODO] optimize this loop, you can skip checking all entries of routing table
-		for(i=0;i< ROW; i++){
-			for(j=0; j< COL; j++){
-				if(!routingTable[i][j].compare( "\0")){
-					if(abs( atoi(key.c_str()) - atoi(routingTable[i][j].c_str())) < min_diff){
-						min_diff = abs(atoi(key.c_str()) - atoi(routingTable[i][j].c_str()));
-						next_node_Id = routingTable[i][j];
-					}
+
+	// Scanning Routing Table 
+	
+	for(i=0;i<ROW ; i++){  
+		for(j=0; j< COL; j++){
+			if(routingTable[i][j].compare( "ffffffff")){
+				if(strdiff(key,routingTable[i][j]) < min_diff && shl(key,leafSet[i])>=row){
+					min_diff = strdiff(key,routingTable[i][j]);
+					nextNodeId = routingTable[i][j];
 				}
 			}
 		}
 	}
-	printNode();
+	
+	// Scanning Neighborhood Set
+	
+	for(i=0;i< M; i++){  // check Neighborhood Set for some nodeId having value closer to key than current nodeId
+		if(!neighborhoodSet[i].compare( "ffffffff"))
+			continue;
+		if(strdiff(key,neighborhoodSet[i])  < min_diff && shl(key,leafSet[i])>=row){
+			nextNodeId.assign(neighborhoodSet[i]);
+			min_diff = strdiff(key,neighborhoodSet[i]);
+		}
+	}
+//	printNode();
 	getchar();
-	next_node_Id.assign(key);
-//	if(next_node_Id == nodeId) // [TODO] implement logic of no entry found in routing table
-//		return next_node_Id;
-	return ;
+	return nextNodeId;
 }
 
-int pastry :: route(string & key1, string & key2, char *msg){
-	int next_key = random() % N;	
-	char ipadd[100];
-	int ip1=0;
-	ip1 = mapIdIp[key1];
-	while(ip1!=-1){
-		string key1 = key2;
-		cout<< "Working On Node ";
-		nodeList[ip1].printNodeId() ;
-		nodeList[ip1].forward(key2, msg);
-		if(!key2.compare(key1))
-			break;
+string  pastry :: getNearestNodeId(const string &s){
+	map <string , int > :: iterator it;
+	string keyNext, keyPrev;
+	long long min = 999999999;
+	for(it=mapIdIp.begin();it!=mapIdIp.end(); it++){
+		printf("%s\n",it->first.c_str());
+		keyPrev.assign(it->first);
+		if(strdiff(s,keyPrev) < min){
+			keyNext.assign(keyPrev);
+			min = strdiff(s,keyPrev);
+		}  // find key1 or first key.
 	}
-	return 0;
+	//s.assign(keyNext);	
+return keyNext;
+}
+
+string & pastry :: route(string & key1,const string & key2, char *msg){
+	string keyNext,keyPrev,nearestKey;
+	map <string , int > :: iterator it;
+	if(mapIdIp.find(key1)==mapIdIp.end()){	
+		cout << key1 << " not found.. searching for new key " << endl;
+		nearestKey.assign( getNearestNodeId(key1));
+	}
+	cout << "Taking " << nearestKey << " as default Source key..." << endl;
+	keyNext.assign(nearestKey);
+	do{
+		cout << "Next Key " << keyNext << endl;
+		keyPrev.assign(keyNext);
+		keyNext = nodeList[mapIdIp[keyPrev]].forward(key2, msg);
+	}while(keyPrev.compare(keyNext));
+	key1.assign(keyNext);
+	return key1;
 }
 
 int node :: isKey(string &key){
@@ -270,7 +340,7 @@ int node :: getNextNodeId(map <int, string> & mapIpId, map <string, int> & mapId
 	sprintf(n,"%d",ip);
 	string ipstr(n);
 	string nodeIdStr(md5(ipstr).substr(0,8));
-	if(mapIdIp[nodeIdStr]!=0)
+	if(mapIdIp.find(nodeIdStr)!=mapIdIp.end())
 		return -1;
 	mapIdIp[nodeIdStr] = ip;
 	mapIpId[ip] = nodeIdStr;
@@ -404,7 +474,7 @@ main(int argc, char *argv[])
 	int choice,i,j,key;
 	string nodeId1, nodeId2;
 	char msg[100];
-	string key1, key2;
+	string key11, key12;
 	pastry *pastryObj = new pastry();
 	pastryObj->pastryInit();
 	while(choice!=5){
@@ -412,12 +482,12 @@ main(int argc, char *argv[])
 	switch(choice){
 		case 1:
 				printf("Enter Source Key\n");
-				cin >> key1;
+				cin >> key11;
 				printf("Enter Destination Key\n");
-				cin >> key2;
+				cin >> key12;
 				printf("Enter String\n");
 				cin  >> msg;
-				pastryObj->route(key1,key2,msg);
+				pastryObj->route(key11,key12,msg);
 				break;
 		case 2:
 				break;
