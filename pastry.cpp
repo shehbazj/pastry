@@ -4,7 +4,7 @@
 
 * Creation Date : 09-02-2013
 
-* Last Modified : Sun 17 Feb 2013 01:56:17 PM IST
+* Last Modified : Mon 18 Feb 2013 04:41:50 AM IST
 
 * Created By : ShehbazJaffer <shehbazjaffer007@gmail.com> 
 
@@ -75,31 +75,29 @@ vector <int> :: iterator IntIter;
 typedef class node 
 {
 /*member data*/
-	string nodeId;
 	uint8_t ipAddress[4];
+	string nodeId;
 	string *leafSet;
 	string *neighborhoodSet;
 	string routingTable[ROW][COL];
 /*member functions*/
-	void getNextIp();
 	int getNextNodeId(map <int, string> & , map <string, int> & );
+	void getNextIp();
 public:
-	string getNodeId(){return nodeId;}
 	int initNode(map <int, string> &, map <string, int> &);
-	void initLeafSet(map <string , int> & );
-//	void initRoutingTable(map <string , int> &);
-	void setRoutingTableEntry(int, int, string);
-	string & getRoutingTableEntry(int, int);
-	void initNeighborhoodSet(map <int, string> & );
-	string forward(const string &,char msg []); // returns next Id (if there exists one.. else returns -1);
-	int  deliver(char msg[], int key); // why do we need this?
+	int deliver(char msg[], int key); // why do we need this?
 	int nodeListLookup(string &);
-	void updateLeafSet(){};
-	void updateNeighborhoodSet(){};
-	void updateRoutingTable(){};
+	int isKey(string &);
+	void initLeafSet(map <string , int> & );
+	void initNeighborhoodSet(map <int, string> & );
+	void copyLeafSet(node &);
+	void copyNeighborhoodSet(node &);
 	void printNodeId(void); 
 	void printNode(void);
-	int  isKey(string &);
+	void setRoutingTableEntry(int, int, string);
+	string getNodeId(){return nodeId;}
+	string forward(const string &,char msg [], int hitCounter []); // returns next Id (if there exists one.. else returns -1);
+	string & getRoutingTableEntry(int, int);
 }node;
 
 typedef class pastry{
@@ -108,11 +106,13 @@ typedef class pastry{
 	map <string, int> mapIdIp;
 	map <int, string> mapIpId;
 	void pastryInit(void);
-	string & route(string & key1,const string & key2, char []);
 	void initRoutingTable();
 	void printNode(string &);
+	void addNode();
+	node getNodeObject(string &);
 	string bestMatch( int , char , string );
-	string  getNearestNodeId(const string &);
+	string getNearestNodeId(const string &);
+	string & route(string & key1,const string & key2, char [], vector <string> &, int [] );
 }pastry;
 
 long long strdiff(const string &s1, string &s2){
@@ -131,6 +131,21 @@ int shl(const string & key, string &nodeId){ // returns common substring length
 	for(i=key.length()-1;i>=0;i--)
 		if(!strncmp(key.c_str(),nodeId.c_str(),i))
 			return i;
+}
+
+void  node :: copyNeighborhoodSet(node &n){
+	
+}
+
+node pastry :: getNodeObject(string &s){
+	vector <node> :: iterator ItN;
+	node retNode; //= new node();
+	for(ItN=nodeList.begin(); ItN!=nodeList.end();ItN++){
+		if(ItN->getNodeId().compare(s)){
+			retNode =  *ItN;
+		}
+	}
+	return retNode;
 }
 
 string pastry::bestMatch( int rowNo, char colChar, string curNode ){
@@ -171,13 +186,15 @@ void node :: printNodeId(void){
 	cout << nodeId << endl ;
 }
 
-string node :: forward(const string & key, char *msg){
+string node :: forward(const string & key, char *msg, int *hitCounter){
 	// returns the next node if there exists a better match for the key
 	int i,j;
 	long long min_diff;
 	string nextNodeId;
 	int col,row;
+	printf("msg received = %s\n",msg);
 	if(nodeId.compare(key)==0){
+		hitCounter[0]++;
 		return key; // reached destination, return.
 	}
 	nextNodeId.assign(nodeId);
@@ -200,11 +217,13 @@ string node :: forward(const string & key, char *msg){
 				min_diff = strdiff(key,leafSet[i]);
 			}
 		}
+		hitCounter[0]++;
 		return nextNodeId;
 	}
 	row = shl(key,nodeId);
 	col = (key[row] > '9') ? (key[row]-87): (key[row]-48);
 	if(routingTable[row][col].compare("ffffffff")){ // routingTable [HIT]
+		hitCounter[1]++;
 		return routingTable[row][col];
 	}
 	// [END CASE] return minimum node entry encountered among  (Leaf Set) U (Routing Table) U (NeighborHood Set)
@@ -244,6 +263,7 @@ string node :: forward(const string & key, char *msg){
 		}
 	}
 //	printNode();
+	hitCounter[2]++;
 	getchar();
 	return nextNodeId;
 }
@@ -264,7 +284,7 @@ string  pastry :: getNearestNodeId(const string &s){
 return keyNext;
 }
 
-string & pastry :: route(string & key1,const string & key2, char *msg){
+string & pastry :: route(string & key1,const string & key2, char *msg, vector <string> & hopNodes, int *hitCounter){
 	string keyNext,keyPrev,nearestKey;
 	map <string , int > :: iterator it;
 	if(mapIdIp.find(key1)==mapIdIp.end()){	
@@ -275,8 +295,9 @@ string & pastry :: route(string & key1,const string & key2, char *msg){
 	keyNext.assign(nearestKey);
 	do{
 		cout << "Next Key " << keyNext << endl;
+		hopNodes.push_back(keyNext);
 		keyPrev.assign(keyNext);
-		keyNext = nodeList[mapIdIp[keyPrev]].forward(key2, msg);
+		keyNext = nodeList[mapIdIp[keyPrev]].forward(key2, msg, hitCounter);
 	}while(keyPrev.compare(keyNext));
 	key1.assign(keyNext);
 	return key1;
@@ -442,19 +463,27 @@ void pastry :: pastryInit(void){
 	nodeList.resize(N);
 	f(i,0,N){			//Initialize all Nodes
 		nodeIp = nodeList[i].initNode(mapIpId,mapIdIp );	
-	//	printf("PASTRY INIT :id = %s ip = %d\n",mapIpId[nodeIp].c_str(), nodeIp);
 	}
 	f(i,0,N){
 		nodeList[i].initLeafSet(mapIdIp);
-		//nodeList[i].initRoutingTable(mapIdIp);
 		nodeList[i].initNeighborhoodSet(mapIpId);
-//		nodeList[1001].printNode();	
 	}
 	initRoutingTable();
-//	for (i = 0; i < N; i++) {
-//		nodeList[i].printNode();
-//		getchar();
-//	}
+}
+
+void pastry :: addNode(){
+	int ip;
+	char msg[] = "ping";
+	int hitCounter[3];
+	vector <string> hopNodes;
+	string neighborNodeId;
+	node newNode;
+	ip = newNode.initNode(mapIpId, mapIdIp);
+	neighborNodeId = nodeList.back().getNodeId();
+	const string destinationNodeId = newNode.getNodeId();
+	route(neighborNodeId,destinationNodeId,msg,hopNodes, hitCounter);
+	node neighborNode = getNodeObject(neighborNodeId);
+	newNode.copyNeighborhoodSet(neighborNode);	
 }
 
 int menu(){
@@ -474,6 +503,9 @@ main(int argc, char *argv[])
 	int choice,i,j,key;
 	string nodeId1, nodeId2;
 	char msg[100];
+	vector <string> hopNodes;
+	vector <string> :: iterator itS;
+	int hitCounter[3];
 	string key11, key12;
 	pastry *pastryObj = new pastry();
 	pastryObj->pastryInit();
@@ -487,9 +519,14 @@ main(int argc, char *argv[])
 				cin >> key12;
 				printf("Enter String\n");
 				cin  >> msg;
-				pastryObj->route(key11,key12,msg);
+				pastryObj->route(key11,key12,msg,hopNodes, hitCounter);
+				for(itS= hopNodes.begin(); itS!=hopNodes.end(); itS++)
+					cout << "Node : "<< *itS << "\n " ;
+				cout << "\n";
 				break;
 		case 2:
+				printf("Creating A new Node...\n");
+				pastryObj->addNode();
 				break;
 		case 3: 
 				break;
