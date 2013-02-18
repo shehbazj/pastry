@@ -4,7 +4,7 @@
 
 * Creation Date : 09-02-2013
 
-* Last Modified : Mon 18 Feb 2013 04:41:50 AM IST
+* Last Modified : Mon 18 Feb 2013 08:40:53 AM IST
 
 * Created By : ShehbazJaffer <shehbazjaffer007@gmail.com> 
 
@@ -420,34 +420,7 @@ void node :: setRoutingTableEntry( int row, int column, string entry){
 string & node :: getRoutingTableEntry( int row, int column){
 	return routingTable[row][column];
 }
-/*
-void node :: initRoutingTable(map <string, int> & mapIdIp ){
-	int x,i,j;
-	char buf[2];
-	string routingEntry;
-//	routingTable = new string *[ROW];
-//	assert(routingTable!=NULL);
-//	f(i,0,ROW){
-//		routingTable[i] = new string [COL];
-//		assert(routingTable[i]!=NULL);
-//	}
-	routingEntry.assign(nodeId);
-	//printf("Initializing Routing Table for %s\n",nodeId.c_str());
-	f(i,0,ROW){
-		f(j,0,COL){
-			sprintf(buf,"%x",j);
-			routingEntry.replace(i,1,buf);
-			if(mapIdIp[routingEntry]!=0){
-				routingTable[i][j].assign(routingEntry);
-			}else{
-			routingTable[i][j].assign("\0");	
-			}
-		//	printf("NodeId = %s :: routingTable[%d][%d] =  %s\n",nodeId.c_str(),i,j,routingTable[i][j].c_str());
-		}
-	}
-//	printf("Routing Table Initialized for %s\n",nodeId.c_str());
-}
-*/
+
 int node :: initNode( map <int, string>  & mapIpId , map <string, int> & mapIdIp  ){
 	int i=-1;
 	while(i==-1){
