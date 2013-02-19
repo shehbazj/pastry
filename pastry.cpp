@@ -4,7 +4,7 @@
 
 * Creation Date : 09-02-2013
 
-* Last Modified : Mon 18 Feb 2013 08:40:53 AM IST
+* Last Modified : Tue 19 Feb 2013 08:12:07 PM IST
 
 * Created By : ShehbazJaffer <shehbazjaffer007@gmail.com> 
 
@@ -84,18 +84,26 @@ typedef class node
 	int getNextNodeId(map <int, string> & , map <string, int> & );
 	void getNextIp();
 public:
+	node(){
+		for(int i=0;i<ROW;i++)
+			for(int j=0;j<COL;j++)
+				routingTable[i][j].assign("ffffffff");
+	}
 	int initNode(map <int, string> &, map <string, int> &);
 	int deliver(char msg[], int key); // why do we need this?
 	int nodeListLookup(string &);
 	int isKey(string &);
 	void initLeafSet(map <string , int> & );
 	void initNeighborhoodSet(map <int, string> & );
-	void copyLeafSet(node &);
-	void copyNeighborhoodSet(node &);
 	void printNodeId(void); 
 	void printNode(void);
 	void setRoutingTableEntry(int, int, string);
+	void setNodeInfo(node ,char, int );
+	void apprise(string , map <string, int> &);
 	string getNodeId(){return nodeId;}
+	string getLeaf(int i){return leafSet[i];}
+	string getRoutingTable(int i, int j) {return routingTable[i][j];}
+	string getNeighbor(int i){return neighborhoodSet[i];}
 	string forward(const string &,char msg [], int hitCounter []); // returns next Id (if there exists one.. else returns -1);
 	string & getRoutingTableEntry(int, int);
 }node;
@@ -105,6 +113,7 @@ typedef class pastry{
 	vector <node> nodeList;
 	map <string, int> mapIdIp;
 	map <int, string> mapIpId;
+	int getNodeIndex(string );
 	void pastryInit(void);
 	void initRoutingTable();
 	void printNode(string &);
@@ -113,6 +122,7 @@ typedef class pastry{
 	string bestMatch( int , char , string );
 	string getNearestNodeId(const string &);
 	string & route(string & key1,const string & key2, char [], vector <string> &, int [] );
+	string * getNodeInfo(string &, char );
 }pastry;
 
 long long strdiff(const string &s1, string &s2){
@@ -131,10 +141,6 @@ int shl(const string & key, string &nodeId){ // returns common substring length
 	for(i=key.length()-1;i>=0;i--)
 		if(!strncmp(key.c_str(),nodeId.c_str(),i))
 			return i;
-}
-
-void  node :: copyNeighborhoodSet(node &n){
-	
 }
 
 node pastry :: getNodeObject(string &s){
@@ -184,6 +190,76 @@ void pastry::initRoutingTable(){
 
 void node :: printNodeId(void){
 	cout << nodeId << endl ;
+}
+
+void node :: apprise(string  candidateNodeId,map <string , int> & mapIdIp){
+	int i;
+	string refreshNodeId;
+	// update leaf Set with new nodeId
+	for(i=0;i< L;i++)
+		if(strcmp(candidateNodeId.c_str(),leafSet[i].c_str()) < 0 && strdiff(candidateNodeId,nodeId) < strdiff(candidateNodeId,leafSet[i])){
+			break;
+		}
+	for(;i<L;i++){
+		refreshNodeId.assign(leafSet[i]);
+		leafSet[i].assign(candidateNodeId);
+		candidateNodeId.assign(refreshNodeId);
+	}
+	// update neighborhod set with new nodeId
+	int x,y;
+	for(i=0;i< M;i++){
+		x = mapIdIp[candidateNodeId]; 
+		y = mapIdIp[neighborhoodSet[i]];
+		if(x > y){
+			break;
+		}
+	}
+	for(;i<M;i++){
+		refreshNodeId.assign(neighborhoodSet[i]);
+		neighborhoodSet[i].assign(candidateNodeId);
+		candidateNodeId.assign(refreshNodeId);
+	}
+	// update routing table entry with new nodeId
+	int row = shl(nodeId,candidateNodeId);
+	int col = (candidateNodeId[row] >= 97)? candidateNodeId[row]-87: candidateNodeId[row]-48;
+	if(!routingTable[row][col].compare("ffffffff")){
+		routingTable[row][col].assign(candidateNodeId);
+	}
+}
+
+void node :: setNodeInfo(node existingNode, char c, int row){
+	int nextIndex=0, i, r1, c1;
+	if(c=='L'){
+		leafSet = new string[L];
+		if(strdiff(existingNode.leafSet[0],nodeId) > strdiff(existingNode.leafSet[L-1], nodeId) ){ nextIndex=1;}
+		for(i=0;i<(L/2 -1);i++){
+			leafSet[i].assign(existingNode.leafSet[i+nextIndex]);
+			leafSet[L/2 + i +1].assign(existingNode.leafSet[i + L/2]);
+		}
+		leafSet[L/2-1].assign(existingNode.leafSet[L/2 -1 + nextIndex]);
+		leafSet[L/2].assign(existingNode.getNodeId());
+	}else if(c=='N'){
+		neighborhoodSet = new string[M];
+		if(strdiff(existingNode.neighborhoodSet[0],nodeId) > strdiff(existingNode.neighborhoodSet[M-1], nodeId) ){ nextIndex=1;}
+		for(i=0;i<(M/2 -1);i++){
+			neighborhoodSet[i].assign(existingNode.neighborhoodSet[i+nextIndex]);
+			neighborhoodSet[M/2 + i +1].assign(existingNode.neighborhoodSet[i + M/2]);
+		}
+		neighborhoodSet[M/2-1].assign(existingNode.neighborhoodSet[M/2 -1 + nextIndex]);
+		neighborhoodSet[M/2].assign(existingNode.getNodeId());
+	}else if(c=='R'){
+		if(row==-1){
+			r1 = shl(nodeId,existingNode.nodeId);
+			c1 = (nodeId.at(r1) > 96)? nodeId.at(r1)-87 : nodeId.at(r1)-48;
+			if(!routingTable[r1][c1].compare("ffffffff")){
+				routingTable[r1][c1].assign(existingNode.nodeId);
+			}
+		}else{
+			for(i=0;i<COL;i++){
+				routingTable[row][i].assign(existingNode.routingTable[row][i]);
+			}
+		}
+	}
 }
 
 string node :: forward(const string & key, char *msg, int *hitCounter){
@@ -287,6 +363,7 @@ return keyNext;
 string & pastry :: route(string & key1,const string & key2, char *msg, vector <string> & hopNodes, int *hitCounter){
 	string keyNext,keyPrev,nearestKey;
 	map <string , int > :: iterator it;
+	nearestKey.assign(key1);
 	if(mapIdIp.find(key1)==mapIdIp.end()){	
 		cout << key1 << " not found.. searching for new key " << endl;
 		nearestKey.assign( getNearestNodeId(key1));
@@ -295,6 +372,10 @@ string & pastry :: route(string & key1,const string & key2, char *msg, vector <s
 	keyNext.assign(nearestKey);
 	do{
 		cout << "Next Key " << keyNext << endl;
+		if(find(hopNodes.begin(),hopNodes.end(),keyNext)!=hopNodes.end()){
+			printf("Race Detected\n");
+			break;
+		}
 		hopNodes.push_back(keyNext);
 		keyPrev.assign(keyNext);
 		keyNext = nodeList[mapIdIp[keyPrev]].forward(key2, msg, hitCounter);
@@ -308,6 +389,7 @@ int node :: isKey(string &key){
 		return 1;
 	return 0;
 }
+
 void pastry :: printNode(string & key){
 	vector <node> :: iterator it;
 	for(it = nodeList.begin(); it != nodeList.end(); it++)
@@ -323,26 +405,25 @@ void node :: printNode(){
 	printf("\t\t\tIPAdd = %d.%d.%d.%d\n",ipAddress[3],ipAddress[2],ipAddress[1],ipAddress[0] );
 	printf("\t\t\tLeaf Set\n");
 	f(i,0,L/2)
-		printf("%s\t",leafSet[i].c_str());
+		printf("%s  ",leafSet[i].c_str());
 	printf("\n");
 	f(i,L/2,L)
-		printf("%s\t",leafSet[i].c_str());
+		printf("%s  ",leafSet[i].c_str());
 	printf("\n");
 	printf("\t\t\tNeighborhood Set\n");
 	f(i,0,M/2)
-		printf("%s\t",neighborhoodSet[i].c_str());
+		printf("%s  ",neighborhoodSet[i].c_str());
 	printf("\n");
 	f(i,M/2,M)
-		printf("%s\t",neighborhoodSet[i].c_str());
+		printf("%s  ",neighborhoodSet[i].c_str());
 	printf("\n");
 	printf("\t\t\tRouting Table\n");
 	f(i,0,ROW){
 		f(j,0,COL){
-			printf("%s\t",routingTable[i][j].c_str());
+			printf("%s  ",routingTable[i][j].c_str());
 		}
 		printf("\n");
 	}
-	printf("\n");
 }
 
 void node :: getNextIp(){
@@ -431,6 +512,13 @@ int node :: initNode( map <int, string>  & mapIpId , map <string, int> & mapIdIp
 	return i;
 }
 
+int pastry :: getNodeIndex(string  QnodeId){
+	vector <node> :: iterator it;
+	for(it = nodeList.begin(); it!=nodeList.end(); it++)
+		if(!(it->getNodeId().compare(QnodeId)))
+			return distance(nodeList.begin(),it);
+}
+
 void pastry :: pastryInit(void){
 	int i,nodeIp;
 	nodeList.resize(N);
@@ -447,16 +535,47 @@ void pastry :: pastryInit(void){
 void pastry :: addNode(){
 	int ip;
 	char msg[] = "ping";
-	int hitCounter[3];
+	int hitCounter[3], i , j;
 	vector <string> hopNodes;
-	string neighborNodeId;
+	vector <string> :: iterator it;
+	string newLeafSet[L],newNeighborhoodSet[M];
+	string neighborNodeId, leafNodeId;
+	string queryString;
 	node newNode;
 	ip = newNode.initNode(mapIpId, mapIdIp);
 	neighborNodeId = nodeList.back().getNodeId();
+	printf("neighborNodeId = %s\n lastNodeNodeId = %s\n", neighborNodeId.c_str(), nodeList.back().getNodeId().c_str());
 	const string destinationNodeId = newNode.getNodeId();
 	route(neighborNodeId,destinationNodeId,msg,hopNodes, hitCounter);
-	node neighborNode = getNodeObject(neighborNodeId);
-	newNode.copyNeighborhoodSet(neighborNode);	
+	for(it=hopNodes.begin();it!=hopNodes.end();it++)
+		printf("hopNode :: %s\n", it->c_str());
+	leafNodeId = hopNodes.back();
+	newNode.setNodeInfo(nodeList[getNodeIndex(leafNodeId)],'L',-1);
+	neighborNodeId = nodeList.back().getNodeId();
+	newNode.setNodeInfo(nodeList[getNodeIndex(neighborNodeId)],'N',-1);
+	for(it=hopNodes.begin();it!=hopNodes.end();it++){
+		printf("string sent to setNodeInfo = %s\n",it->c_str());
+		queryString.assign(*it);
+		printf("distance = %d\n",int(distance(hopNodes.begin(), it)));
+		newNode.setNodeInfo(nodeList[getNodeIndex(queryString)],'R',distance(hopNodes.begin(),it));
+	}
+	// apprise all nodes known to newNode about the Addition of the new Node.
+	nodeList.push_back(newNode);
+ 	nodeList.back().printNode();
+ 	mapIdIp[newNode.getNodeId()]=ip;
+ 	mapIpId[ip]=newNode.getNodeId();
+ 	for(i=0;i<L;i++){  // inform all leaf nodes
+		nodeList[getNodeIndex(newNode.getLeaf(i))].apprise(newNode.getNodeId(),mapIdIp);
+	}
+	for(i=0;i<M;i++){  // inform all neighborhood nodes
+		nodeList[getNodeIndex(newNode.getNeighbor(i))].apprise(newNode.getNodeId(),mapIdIp);
+	}
+	for(i=0;i<ROW;i++){ // inform all routing table nodes
+		for(j=0;j<COL;j++)
+			if(newNode.getRoutingTable(i,j).compare("ffffffff")){
+				nodeList[getNodeIndex(newNode.getRoutingTable(i,j))].apprise(newNode.getNodeId(),mapIdIp);	
+			}
+	}
 }
 
 int menu(){
@@ -496,6 +615,7 @@ main(int argc, char *argv[])
 				for(itS= hopNodes.begin(); itS!=hopNodes.end(); itS++)
 					cout << "Node : "<< *itS << "\n " ;
 				cout << "\n";
+				hopNodes.resize(0);
 				break;
 		case 2:
 				printf("Creating A new Node...\n");
